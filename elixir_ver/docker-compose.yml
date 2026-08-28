@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notify
+      POSTGRES_PASSWORD: notify
+      POSTGRES_DB: notify
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://notify:notify@postgres:5432/notify
+      PORT: "8080"
+      MIX_ENV: prod
+    ports:
+      - "8080:8080"
+    command: >
+      sh -c "./bin/rc_notification eval 'RcNotification.Release.migrate()' &&
+             ./bin/rc_notification start"

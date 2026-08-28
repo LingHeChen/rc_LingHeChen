@@ -1,0 +1,1 @@
+ALTER TABLE vendor_configs ADD COLUMN IF NOT EXISTS body_tpl TEXT NOT NULL DEFAULT '';

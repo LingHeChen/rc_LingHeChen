@@ -1,0 +1,67 @@
+name: CI (Go)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "golang_ver/**"
+      - ".github/workflows/go_ci.yml"
+  pull_request:
+    paths:
+      - "golang_ver/**"
+      - ".github/workflows/go_ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: golang_ver
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: notify
+          POSTGRES_PASSWORD: notify
+          POSTGRES_DB: notify
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgres://notify:notify@localhost:5432/notify?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: golang_ver/go.sum
+
+      - name: Install psql
+        run: sudo apt-get install -y --no-install-recommends postgresql-client
+        working-directory: .
+
+      - name: Run migrations
+        run: |
+          for migration in migrations/*.sql; do
+            psql "$DATABASE_URL" -f "$migration"
+          done
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: go test -race -count=1 ./internal/...
+
+      - name: Integration tests
+        run: go test -race -count=1 -tags=integration ./tests/...
+
+      - name: Build Docker image
+        run: docker build -t rc_linghechen_go:ci .
